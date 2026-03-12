@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClickHouse: Уровень 0 и 1. Мониторинг</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: #f8fafc;
+        }
+        h1 {
+            font-size: 2.5rem;
+            color: #0f3b5e;
+            border-bottom: 4px solid #1e4a6f;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+        h2 {
+            font-size: 2rem;
+            color: #1e4a6f;
+            margin-top: 2.5rem;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+            border-left: 6px solid #1e4a6f;
+            padding-left: 1rem;
+        }
+        h3 {
+            font-size: 1.5rem;
+            color: #2c3e50;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+        .theory-block {
+            background-color: #f1f5f9;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-left: 6px solid #1e4a6f;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            background-color: white;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        th {
+            background-color: #1e4a6f;
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            text-align: left;
+        }
+        td {
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+        }
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        .mark {
+            background-color: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.9rem;
+        }
+        pre {
+            background-color: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 1rem 0;
+        }
+        .question-box {
+            background-color: #fef3c7;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-left: 6px solid #d97706;
+        }
+        .answer {
+            background-color: #d1fae5;
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-left: 6px solid #059669;
+        }
+        .checklist {
+            background-color: #e0f2fe;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border: 2px dashed #0284c7;
+        }
+        .checklist ul {
+            list-style-type: none;
+        }
+        .checklist li {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        .checklist li::before {
+            content: "✓";
+            color: #0284c7;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e1;
+            margin: 1rem 0;
+        }
+        .warning {
+            color: #b91c1c;
+            font-weight: 600;
+        }
+        .note {
+            color: #1e4a6f;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+<h1>УРОВЕНЬ 1: СРЕДСТВА МОНИТОРИНГА ОПЕРАЦИОННОЙ СИСТЕМЫ</h1>
+
+    <h3>1.1 Описание категории инструментов</h3>
+    <p>Средства мониторинга операционной системы — это базовый уровень наблюдения за работой ClickHouse. Поскольку ClickHouse работает на Linux и интенсивно использует системные ресурсы (CPU, память, дисковый ввод-вывод), мониторинг на уровне ОС критически важен для:</p>
+    <ul>
+        <li>Выявления узких мест производительности</li>
+        <li>Понимания потребления ресурсов процессом clickhouse-server</li>
+        <li>Диагностики проблем с оборудованием</li>
+        <li>Планирования масштабирования</li>
+    </ul>
+
+    <h3>1.2 Основные инструменты</h3>
+    <table>
+        <tr>
+            <th>Инструмент</th>
+            <th>Назначение</th>
+            <th>Ключевые метрики</th>
+        </tr>
+        <tr>
+            <td>top/htop</td>
+            <td>Мониторинг процессов и CPU</td>
+            <td>%CPU, %MEM, RES, TIME+</td>
+        </tr>
+        <tr>
+            <td>vmstat</td>
+            <td>Виртуальная память, CPU</td>
+            <td>r, b, swpd, free, bi, bo, wa</td>
+        </tr>
+        <tr>
+            <td>iostat</td>
+            <td>Дисковый I/O</td>
+            <td>r/s, w/s, rkB/s, wkB/s, %util, await</td>
+        </tr>
+        <tr>
+            <td>iotop</td>
+            <td>I/O по процессам</td>
+            <td>DISK READ, DISK WRITE, IO%</td>
+        </tr>
+    </table>
+
+    <h2>2. ПРАКТИЧЕСКИЙ БЛОК</h2>
+
+    <h3>2.1 Установка и запуск ClickHouse</h3>
+    <p>Шаг 1: Скачивание</p>
+    <pre>curl https://clickhouse.com/ | sh</pre>
+    <p>Шаг 2: Установка как сервис</p>
+    <pre>sudo ./clickhouse install</pre>
+    <p>Шаг 3: Запуск сервера</p>
+    <pre>sudo clickhouse start</pre>
+    <p>Шаг 4: Проверка подключения</p>
+    <pre>clickhouse-client</pre>
+    <p>Шаг 5: Теперь можно писать запросы напрямую после :)</p>
+    <pre>SELECT 1</pre>
+    <p>Теперь работа будет устроена следующим образом: оставьте это окно, откройте новое. Для нового окна: 1) Запустите указанную утилиту. Посмотрите на показатели при фоновом процессе. 2) Вернитесь к окну 1. с открытым clickhouse-client и запустите в нем запрос:</p>
+    <pre>SELECT
+count(),
+avg(number),
+max(number)
+FROM numbers(10000000);</pre>
+    <p>3) В этот же момент смотрите на окно 2. со статистиками и то, как они меняются.</p>
+
+    <h2>2. ВИЗУАЛЬНЫЙ БЛОК</h2>
+
+    <h3>2.1 Примеры вывода команд</h3>
+
+    <h4>A. top — мониторинг процесса ClickHouse</h4>
+    <p>Верхняя часть: статистика системы</p>
+    <table>
+        <tr>
+            <th>Колонка / Поле</th>
+            <th>Описание</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>load average (1, 5, 15 мин)</td>
+            <td>Средняя загрузка системы: количество процессов в очереди на CPU</td>
+            <td>&lt; числа ядер CPU (для 8 ядер: &lt; 8.0)</td>
+        </tr>
+        <tr>
+            <td>Tasks: running</td>
+            <td>Процессы, активно выполняющиеся или готовые к выполнению</td>
+            <td>1-5 (без нагрузки)</td>
+        </tr>
+        <tr>
+            <td>Tasks: sleeping</td>
+            <td>Процессы в режиме ожидания</td>
+            <td>Любое значение, норма</td>
+        </tr>
+        <tr>
+            <td>Tasks: zombie</td>
+            <td>Зомби-процессы (завершённые, но не удалённые)</td>
+            <td>Должно быть 0</td>
+        </tr>
+        <tr>
+            <td>%Cpu(s): us (user)</td>
+            <td>Время CPU в пользовательском режиме (приложения)</td>
+            <td>&lt; 70% (остальное — запас)</td>
+        </tr>
+        <tr>
+            <td>%Cpu(s): sy (system)</td>
+            <td>Время CPU в режиме ядра (системные вызовы)</td>
+            <td>&lt; 20%</td>
+        </tr>
+        <tr>
+            <td>%Cpu(s): ni (nice)</td>
+            <td>Время для процессов с изменённым приоритетом</td>
+            <td>Обычно 0%</td>
+        </tr>
+        <tr>
+            <td>%Cpu(s): id (idle)</td>
+            <td>Время простоя CPU</td>
+            <td>&gt; 10% (есть запас производительности)</td>
+        </tr>
+        <tr>
+            <td>%Cpu(s): wa (iowait)</td>
+            <td>Критично! Время ожидания операций с диском</td>
+            <td>&lt; 10% для SSD, &lt; 20% для HDD</td>
+        </tr>
+        <tr>
+            <td>%Cpu(s): hi/si</td>
+            <td>Время на обработку прерываний (hardware/software)</td>
+            <td>&lt; 5%</td>
+        </tr>
+        <tr>
+            <td>%Cpu(s): st (steal)</td>
+            <td>Время, «украденное» гипервизором (для виртуальных машин)</td>
+            <td>0% (на физических серверах)</td>
+        </tr>
+        <tr>
+            <td>MiB Mem: free</td>
+            <td>Свободная оперативная память</td>
+            <td>&gt; 20% от общей</td>
+        </tr>
+        <tr>
+            <td>MiB Mem: buff/cache</td>
+            <td>Память под буферы и кэш файловой системы</td>
+            <td>Может быть большой — ClickHouse использует для кэша</td>
+        </tr>
+        <tr>
+            <td>MiB Mem: avail</td>
+            <td>Доступная память для новых приложений</td>
+            <td>&gt; 10-15% от общей</td>
+        </tr>
+        <tr>
+            <td>MiB Swap: used</td>
+            <td>Использованный swap</td>
+            <td>Должно быть 0! Свопинг критичен для БД</td>
+        </tr>
+    </table>
+
+    <p>Таблица процессов</p>
+    <table>
+        <tr>
+            <th>Колонка</th>
+            <th>Описание</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>PID</td>
+            <td>Уникальный идентификатор процесса</td>
+            <td>Постоянный для clickhouse-server</td>
+        </tr>
+        <tr>
+            <td>USER</td>
+            <td>Пользователь, от имени которого запущен процесс</td>
+            <td>Обычно clickhouse</td>
+        </tr>
+        <tr>
+            <td>PR (Priority)</td>
+            <td>Приоритет процесса (меньше = выше приоритет)</td>
+            <td>Обычно 20</td>
+        </tr>
+        <tr>
+            <td>NI (Nice)</td>
+            <td>«Вежливость» процесса (-20...+19)</td>
+            <td>Обычно 0</td>
+        </tr>
+        <tr>
+            <td>VIRT</td>
+            <td>Виртуальная память процесса (включая swap, отображённые файлы)</td>
+            <td>Может быть большой — не показатель реальной нагрузки</td>
+        </tr>
+        <tr>
+            <td>RES</td>
+            <td>Важно! Физическая память (RAM), которую процесс фактически использует</td>
+            <td>Основной показатель потребления памяти; должен помещаться в RAM</td>
+        </tr>
+        <tr>
+            <td>SHR</td>
+            <td>Разделяемая память (библиотеки, IPC)</td>
+            <td>Вспомогательная метрика</td>
+        </tr>
+        <tr>
+            <td>S (Status)</td>
+            <td>Статус: R=running, S=sleeping, D=disk wait, Z=zombie</td>
+            <td>Обычно S (sleeping) или R (при нагрузке)</td>
+        </tr>
+        <tr>
+            <td>%CPU</td>
+            <td>Процент использования CPU процессом</td>
+            <td>Может быть &gt;100%! 100% = одно ядро; ClickHouse многопоточный</td>
+        </tr>
+        <tr>
+            <td>%MEM</td>
+            <td>Процент использования оперативной памяти (RES / total RAM)</td>
+            <td>10-40% в зависимости от объёма RAM и нагрузки</td>
+        </tr>
+        <tr>
+            <td>TIME+</td>
+            <td>Общее процессорное время с момента запуска</td>
+            <td>Растёт со временем; показывает накопленную нагрузку</td>
+        </tr>
+        <tr>
+            <td>COMMAND</td>
+            <td>Имя процесса</td>
+            <td>clickhouse-server (сервер) или clickhouse-client (клиент)</td>
+        </tr>
+    </table>
+
+    <p>Запустите во втором окне top. Для этого введите:</p>
+    <pre>top</pre>
+    <p>Пример вывода (фоновая активность):</p>
+    <p>[Здесь должно быть изображение media/image3.png]</p>
+    <p>Интерпретация:</p>
+    <ul>
+        <li>%CPU = 9.7% — фоновые процессы ClickHouse (слияние данных, очистка)</li>
+        <li>%MEM = 18.9% (~1.1 GB) — кэширование данных</li>
+        <li>99.5% idle — система практически простаивает</li>
+        <li>0.0% wa — нет ожидания диска (отлично!)</li>
+    </ul>
+
+    <p>Пример вывода (под нагрузкой):</p>
+    <p>[Здесь должно быть изображение media/image6.png]</p>
+    <p>Интерпретация:</p>
+    <ul>
+        <li>%CPU вырос с 9.7% до 16.7% — выполнение запроса</li>
+        <li>TIME+ увеличился — активная работа CPU</li>
+        <li>Два процесса: server (основная нагрузка) + client (минимальная)</li>
+    </ul>
+
+    <h4>B. vmstat — комплексный мониторинг</h4>
+    <p>Запустите во втором окне vmstat. Для этого введите:</p>
+    <pre>vmstat 2</pre>
+    <table>
+        <tr>
+            <th>Группа</th>
+            <th>Колонка</th>
+            <th>Описание</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>procs</td>
+            <td>r (runnable)</td>
+            <td>Процессы, готовые к выполнению и ожидающие CPU</td>
+            <td>&lt; числа ядер CPU</td>
+        </tr>
+        <tr>
+            <td>procs</td>
+            <td>b (blocked)</td>
+            <td>Процессы в uninterruptible sleep (ожидают I/O)</td>
+            <td>Должно быть 0 (иначе проблемы с диском)</td>
+        </tr>
+        <tr>
+            <td>memory</td>
+            <td>swpd</td>
+            <td>Использовано swap-памяти (в KiB)</td>
+            <td>Должно быть 0! Свопинг недопустим для БД</td>
+        </tr>
+        <tr>
+            <td>memory</td>
+            <td>free</td>
+            <td>Свободная оперативная память (в KiB)</td>
+            <td>&gt; 20% от общей</td>
+        </tr>
+        <tr>
+            <td>memory</td>
+            <td>buff</td>
+            <td>Память под буферы ядра (в KiB)</td>
+            <td>Может быть большой — норма</td>
+        </tr>
+        <tr>
+            <td>memory</td>
+            <td>cache</td>
+            <td>Память под кэш файловой системы (в KiB)</td>
+            <td>ClickHouse использует для кэширования данных</td>
+        </tr>
+        <tr>
+            <td>swap</td>
+            <td>si (swap in)</td>
+            <td>Чтение из swap в RAM (KiB/сек)</td>
+            <td>Должно быть 0!</td>
+        </tr>
+        <tr>
+            <td>swap</td>
+            <td>so (swap out)</td>
+            <td>Запись из RAM в swap (KiB/сек)</td>
+            <td>Должно быть 0!</td>
+        </tr>
+        <tr>
+            <td>io</td>
+            <td>bi (blocks in)</td>
+            <td>Блоки, прочитанные с диска в секунду</td>
+            <td>Зависит от нагрузки; растёт при SELECT</td>
+        </tr>
+        <tr>
+            <td>io</td>
+            <td>bo (blocks out)</td>
+            <td>Блоки, записанные на диск в секунду</td>
+            <td>Зависит от нагрузки; растёт при INSERT</td>
+        </tr>
+        <tr>
+            <td>system</td>
+            <td>in (interrupts)</td>
+            <td>Прерываний в секунду (аппаратных + программных)</td>
+            <td>Зависит от активности сети/диска</td>
+        </tr>
+        <tr>
+            <td>system</td>
+            <td>cs (context switches)</td>
+            <td>Переключений контекста в секунду</td>
+            <td>&lt; 10 000 (выше — возможна перегрузка CPU)</td>
+        </tr>
+        <tr>
+            <td>cpu</td>
+            <td>us (user)</td>
+            <td>% времени CPU в пользовательском режиме</td>
+            <td>&lt; 70%</td>
+        </tr>
+        <tr>
+            <td>cpu</td>
+            <td>sy (system)</td>
+            <td>% времени CPU в режиме ядра</td>
+            <td>&lt; 20%</td>
+        </tr>
+        <tr>
+            <td>cpu</td>
+            <td>id (idle)</td>
+            <td>% времени простоя CPU</td>
+            <td>&gt; 10% (есть запас)</td>
+        </tr>
+        <tr>
+            <td>cpu</td>
+            <td>wa (iowait)</td>
+            <td>Критично! % времени ожидания операций с диском</td>
+            <td>&lt; 10% для SSD, &lt; 20% для HDD</td>
+        </tr>
+        <tr>
+            <td>cpu</td>
+            <td>st (steal)</td>
+            <td>Время, украденное гипервизором (для виртуальных машин)</td>
+            <td>0% (на физических серверах)</td>
+        </tr>
+    </table>
+
+    <p>Пример вывода:</p>
+    <p>[Здесь должно быть изображение media/image4.png]</p>
+    <p>Интерпретация колонок:</p>
+    <table>
+        <tr>
+            <th>Колонка</th>
+            <th>Описание</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>r</td>
+            <td>Процессы в очереди на CPU</td>
+            <td>&lt; числа ядер CPU</td>
+        </tr>
+        <tr>
+            <td>b</td>
+            <td>Процессы в ожидании I/O</td>
+            <td>0 (если &gt;0 постоянно — проблема)</td>
+        </tr>
+        <tr>
+            <td>swpd</td>
+            <td>Использовано swap</td>
+            <td>0 (свопинг критичен для БД!)</td>
+        </tr>
+        <tr>
+            <td>free</td>
+            <td>Свободная память</td>
+            <td>&gt; 20% от общей</td>
+        </tr>
+        <tr>
+            <td>bi/bo</td>
+            <td>Блоки read/write в сек</td>
+            <td>Зависит от нагрузки</td>
+        </tr>
+        <tr>
+            <td>us</td>
+            <td>User CPU (ClickHouse здесь)</td>
+            <td>&lt; 70%</td>
+        </tr>
+        <tr>
+            <td>sy</td>
+            <td>System CPU (ядро)</td>
+            <td>&lt; 20%</td>
+        </tr>
+        <tr>
+            <td>id</td>
+            <td>Idle (простой)</td>
+            <td>&gt; 10%</td>
+        </tr>
+        <tr>
+            <td>wa</td>
+            <td>I/O wait</td>
+            <td>&lt; 10% (критично!)</td>
+        </tr>
+    </table>
+
+    <h4>C. iostat — мониторинг дискового I/O</h4>
+    <p>Запустите во втором окне iostat. Для этого введите:</p>
+    <pre>iostat -xmt 2</pre>
+
+    <p>Блок: Средняя загрузка CPU (avg-cpu)</p>
+    <table>
+        <tr>
+            <th>Колонка</th>
+            <th>Описание</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>%user</td>
+            <td>Время CPU в пользовательском режиме (приложения)</td>
+            <td>&lt; 70%</td>
+        </tr>
+        <tr>
+            <td>%nice</td>
+            <td>Время для процессов с изменённым приоритетом (nice)</td>
+            <td>Обычно 0%</td>
+        </tr>
+        <tr>
+            <td>%system</td>
+            <td>Время CPU в режиме ядра (системные вызовы)</td>
+            <td>&lt; 20%</td>
+        </tr>
+        <tr>
+            <td>%iowait</td>
+            <td>Критично! Время ожидания операций с диском</td>
+            <td>&lt; 10% для SSD, &lt; 20% для HDD</td>
+        </tr>
+        <tr>
+            <td>%steal</td>
+            <td>Время, «украденное» гипервизором (для виртуальных машин)</td>
+            <td>0% (на физических серверах)</td>
+        </tr>
+        <tr>
+            <td>%idle</td>
+            <td>Время простоя CPU</td>
+            <td>&gt; 10% (есть запас производительности)</td>
+        </tr>
+    </table>
+
+    <p>Блок: Статистика по устройствам (при запуске с -x)</p>
+    <table>
+        <tr>
+            <th>Колонка</th>
+            <th>Описание</th>
+            <th>Единицы</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>Device</td>
+            <td>Имя устройства (диск, раздел)</td>
+            <td>—</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>r/s</td>
+            <td>Операций чтения в секунду</td>
+            <td>ops/sec</td>
+            <td>Зависит от нагрузки; рост при аналитических запросах</td>
+        </tr>
+        <tr>
+            <td>w/s</td>
+            <td>Операций записи в секунду</td>
+            <td>ops/sec</td>
+            <td>Рост при INSERT, фоновых MERGE</td>
+        </tr>
+        <tr>
+            <td>rkB/s</td>
+            <td>Объём данных, прочитанных в секунду</td>
+            <td>КБ/сек</td>
+            <td>Зависит от нагрузки</td>
+        </tr>
+        <tr>
+            <td>wkB/s</td>
+            <td>Объём данных, записанных в секунду</td>
+            <td>КБ/сек</td>
+            <td>Рост при вставке данных, слиянии частей</td>
+        </tr>
+        <tr>
+            <td>rrqm/s</td>
+            <td>Запросов чтения, объединённых в очереди (merged)</td>
+            <td>ops/sec</td>
+            <td>Вспомогательная метрика</td>
+        </tr>
+        <tr>
+            <td>wrqm/s</td>
+            <td>Запросов записи, объединённых в очереди</td>
+            <td>ops/sec</td>
+            <td>Вспомогательная метрика</td>
+        </tr>
+        <tr>
+            <td>%rrqm</td>
+            <td>Процент запросов чтения, подвергшихся слиянию</td>
+            <td>%</td>
+            <td>Вспомогательная метрика</td>
+        </tr>
+        <tr>
+            <td>%wrqm</td>
+            <td>Процент запросов записи, подвергшихся слиянию</td>
+            <td>%</td>
+            <td>Вспомогательная метрика</td>
+        </tr>
+        <tr>
+            <td>r_await</td>
+            <td>Среднее время отклика на операцию чтения</td>
+            <td>мс</td>
+            <td>SSD: &lt;1 мс, HDD: &lt;10 мс</td>
+        </tr>
+        <tr>
+            <td>w_await</td>
+            <td>Среднее время отклика на операцию записи</td>
+            <td>мс</td>
+            <td>SSD: &lt;1 мс, HDD: &lt;10 мс</td>
+        </tr>
+        <tr>
+            <td>await</td>
+            <td>Среднее время отклика (чтение + запись)</td>
+            <td>мс</td>
+            <td>Критичная метрика! См. выше</td>
+        </tr>
+        <tr>
+            <td>rarq-sz</td>
+            <td>Средний размер запроса чтения</td>
+            <td>КБ</td>
+            <td>Вспомогательная метрика</td>
+        </tr>
+        <tr>
+            <td>warq-sz</td>
+            <td>Средний размер запроса записи</td>
+            <td>КБ</td>
+            <td>Вспомогательная метрика</td>
+        </tr>
+        <tr>
+            <td>aqu-sz</td>
+            <td>Средняя длина очереди запросов к устройству</td>
+            <td>запросы</td>
+            <td>&lt; 5 (выше — диск не успевает)</td>
+        </tr>
+        <tr>
+            <td>%util</td>
+            <td>Критично! Процент времени, когда устройство было занято</td>
+            <td>%</td>
+            <td>&lt; 80% (если &gt;90% — bottleneck)</td>
+        </tr>
+    </table>
+
+    <p>Пример вывода (без нагрузки):</p>
+    <p>[Здесь должно быть изображение media/image7.png]</p>
+    <p>Пример вывода (под нагрузкой):</p>
+    <p>[Здесь должно быть изображение media/image1.png]</p>
+    <p>Интерпретация ключевых метрик:</p>
+    <table>
+        <tr>
+            <th>Метрика</th>
+            <th>Описание</th>
+            <th>Норма</th>
+        </tr>
+        <tr>
+            <td>r/s, w/s</td>
+            <td>Операций чтения/записи в сек</td>
+            <td>Зависит от нагрузки</td>
+        </tr>
+        <tr>
+            <td>rkB/s, wkB/s</td>
+            <td>Прочитано/записано КБ/сек</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>%util</td>
+            <td>Утилизация диска</td>
+            <td>&lt; 80% (если &gt;90% — bottleneck)</td>
+        </tr>
+        <tr>
+            <td>await</td>
+            <td>Среднее время отклика (мс)</td>
+            <td>SSD: &lt;1 мс, HDD: &lt;10 мс</td>
+        </tr>
+    </table>
+    <p>Анализ результатов:</p>
+    <ul>
+        <li>%util = 0.20% — диск практически не загружен</li>
+        <li>await = 2.50 мс — отличное время отклика (SSD)</li>
+        <li>wkB/s = 0.01 — минимальная запись (небольшая нагрузка)</li>
+    </ul>
+
+    <h4>D. iotop — I/O по процессам</h4>
+    <p>Запустите во втором окне iotop. Для этого введите:</p>
+    <pre>sudo iotop</pre>
+    <p>Или только активные процессы:</p>
+    <pre>sudo iotop -o</pre>
+
+    <p>Верхняя часть: общая статистика</p>
+    <table>
+        <tr>
+            <th>Поле</th>
+            <th>Описание</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>Total DISK READ</td>
+            <td>Суммарная скорость чтения со всех дисков в системе</td>
+            <td>Зависит от нагрузки</td>
+        </tr>
+        <tr>
+            <td>Total DISK WRITE</td>
+            <td>Суммарная скорость записи на все диски в системе</td>
+            <td>Рост при INSERT, MERGE</td>
+        </tr>
+        <tr>
+            <td>Current DISK READ</td>
+            <td>Текущая (мгновенная) скорость чтения</td>
+            <td>Может колебаться</td>
+        </tr>
+        <tr>
+            <td>Current DISK WRITE</td>
+            <td>Текущая (мгновенная) скорость записи</td>
+            <td>Может колебаться</td>
+        </tr>
+    </table>
+
+    <p>Таблица процессов</p>
+    <table>
+        <tr>
+            <th>Колонка</th>
+            <th>Описание</th>
+            <th>Единицы</th>
+            <th>Норма для ClickHouse</th>
+        </tr>
+        <tr>
+            <td>TID</td>
+            <td>Идентификатор потока (Thread ID)</td>
+            <td>—</td>
+            <td>У clickhouse-server может быть несколько потоков</td>
+        </tr>
+        <tr>
+            <td>PRIO</td>
+            <td>Приоритет I/O: класс/уровень</td>
+            <td>—</td>
+            <td>Обычно be/4 (best-effort, уровень 4)</td>
+        </tr>
+        <tr>
+            <td>USER</td>
+            <td>Пользователь, от имени которого запущен процесс</td>
+            <td>—</td>
+            <td>Обычно clickhouse</td>
+        </tr>
+        <tr>
+            <td>DISK READ</td>
+            <td>Скорость чтения данным процессом с диска</td>
+            <td>Б/сек, КБ/сек, МБ/сек</td>
+            <td>Рост при выполнении SELECT-запросов</td>
+        </tr>
+        <tr>
+            <td>DISK WRITE</td>
+            <td>Скорость записи данным процессом на диск</td>
+            <td>Б/сек, КБ/сек, МБ/сек</td>
+            <td>Рост при INSERT, фоновых MERGE</td>
+        </tr>
+        <tr>
+            <td>SWAPIN</td>
+            <td>Процент времени, которое процесс провёл в ожидании swap</td>
+            <td>%</td>
+            <td>Должно быть 0! Свопинг недопустим</td>
+        </tr>
+        <tr>
+            <td>IO></td>
+            <td>Процент времени, которое процесс провёл в ожидании завершения операций с диском</td>
+            <td>%</td>
+            <td>&lt; 10-15% (выше — диск не справляется)</td>
+        </tr>
+        <tr>
+            <td>COMMAND</td>
+            <td>Полная команда запуска процесса</td>
+            <td>—</td>
+            <td>clickhouse-server --config=...</td>
+        </tr>
+    </table>
+
+    <p>Пример вывода (без нагрузки):</p>
+    <p>[Здесь должно быть изображение media/image2.png]</p>
+    <p>Пример вывода (под нагрузкой):</p>
+    <p>[Здесь должно быть изображение media/image5.png]</p>
+    <p>Интерпретация:</p>
+    <ul>
+        <li>DISK WRITE: 3.92 K/s — клиент ClickHouse пишет данные</li>
+        <li>PRIO: be/4 — приоритет best-effort, уровень 4</li>
+        <li>Видно, какой именно процесс создаёт нагрузку на диск</li>
+    </ul>
+
+    <div class="question-box">
+        <h3>Вопрос 1</h3>
+        <p><strong>Ситуация:</strong> Вы запустили утилиту vmstat для мониторинга системы во время выполнения аналитического запроса в ClickHouse. Обратили внимание, что значение в колонке wa (I/O wait) стабильно держится на уровне 45%.</p>
+        <p><strong>Вопрос:</strong> Что означает это значение и какие действия необходимо предпринять?</p>
+        <p><strong>Варианты ответов:</strong></p>
+        <ol>
+            <li>Это нормальное значение, ClickHouse использует 45% CPU для вычислений.</li>
+            <li>45% времени процессор простаивает в ожидании операций ввода-вывода с диском — это критическое узкое место.</li>
+            <li>45% оперативной памяти используется под кэш файловой системы.</li>
+            <li>Сеть работает медленно, 45% пакетов теряется при передаче данных.</li>
+        </ol>
+        <div class="answer">
+            <p><strong>Правильный ответ: 2️⃣ 45% времени процессор простаивает в ожидании операций ввода-вывода с диском — это критическое узкое место.</strong></p>
+            <p><strong>Объяснение:</strong> Колонка wa (iowait) показывает процент времени, когда CPU не занят полезной работой, а ждет завершения операций чтения/записи диска. Значение 45% означает, что почти половина времени процессора тратится впустую. Для SSD нормальным считается значение &lt;5%, для HDD &lt;10%. Рекомендуемые действия: проверить утилизацию диска через iostat, рассмотреть замену HDD на SSD/NVMe, оптимизировать запросы для снижения нагрузки на диск.</p>
+        </div>
+    </div>
+
+    <div class="question-box">
+        <h3>Вопрос 2</h3>
+        <p><strong>Ситуация:</strong> Вы смотрите на процесс clickhouse-server в утилите top. В колонке %CPU отображается значение 385.2%.</p>
+        <p><strong>Вопрос:</strong> Сколько ядер процессора фактически использует ClickHouse в этот момент?</p>
+        <p><strong>Варианты ответов:</strong></p>
+        <ol>
+            <li>Примерно 3.85 ядра (так как 100% = одно ядро).</li>
+            <li>385 ядер одновременно.</li>
+            <li>38.5% от одного ядра.</li>
+            <li>Это ошибка измерения, значение не может превышать 100%.</li>
+        </ol>
+        <div class="answer">
+            <p><strong>Правильный ответ: 1️⃣ Примерно 3.85 ядра (так как 100% = одно ядро).</strong></p>
+            <p><strong>Объяснение:</strong> В Linux утилита top показывает загрузку CPU в процентах от одного логического ядра. Значение 100% означает полную загрузку одного ядра. ClickHouse — многопоточная СУБД, которая может параллельно использовать несколько ядер для выполнения одного запроса. Поэтому 385.2% означает, что полностью загружены 3 ядра и ещё одно загружено на 85%. Если на сервере 8 ядер, то используется примерно 48% вычислительной мощности.</p>
+        </div>
+    </div>
+
+    <div class="question-box">
+        <h3>Вопрос 3</h3>
+        <p><strong>Ситуация:</strong> Вы проверили статистику дисковой подсистемы через iostat -x. Для диска, на котором хранятся данные ClickHouse, вы увидели следующие показатели: утилизация диска (%util) составляет 98.9%, а среднее время отклика (await) — 45.67 мс.</p>
+        <p><strong>Вопрос:</strong> Какой вывод можно сделать о состоянии дисковой подсистемы?</p>
+        <p><strong>Варианты ответов:</strong></p>
+        <ol>
+            <li>Диск работает в штатном режиме, нагрузка оптимальна.</li>
+            <li>Диск перегружен, время отклика слишком высокое для современной СУБД.</li>
+            <li>Необходимо увеличить количество операций чтения.</li>
+            <li>Необходимо отключить кэширование записи.</li>
+        </ol>
+        <div class="answer">
+            <p><strong>Правильный ответ: 2️⃣ Диск перегружен, время отклика слишком высокое для современной СУБД.</strong></p>
+            <p><strong>Объяснение:</strong> Утилизация 98.9% означает, что диск практически постоянно занят обработкой запросов (очередь не успевает обрабатываться). Время отклика 45.67 мс является очень высоким показателем. Для NVMe SSD норма — менее 1 мс, для SATA SSD — менее 5 мс, для HDD — менее 10 мс. Такое значение указывает на то, что диск не справляется с нагрузкой, что напрямую тормозит работу ClickHouse. Рекомендуется перенести данные на быстрые NVMe накопители.</p>
+        </div>
+    </div>
+</body>
+</html>

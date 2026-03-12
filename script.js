@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     feedbackEl.textContent = `❌ Неверно. Правильный ответ: ${correctLetter} — ${correctText}.`;
                 }
             } else {
-                feedbackEl.textContent = '🤔 Выберите один из 4 вариантов';
+                feedbackEl.textContent = 'Выберите один из 4 вариантов';
             }
 
             // состояние навигации
