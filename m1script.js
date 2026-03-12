@@ -115,7 +115,6 @@
             if (selectedIdx !== null) {
                 if (selectedIdx === q.correct) {
                     const explanationText = q.explanation;
-                    
                     feedbackEl.textContent = `✅ Верно!: ${explanationText}`;
                 } else {
                     const correctLetter = letters[q.correct];
