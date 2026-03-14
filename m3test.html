@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Single Page App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+    <div class="quiz-container" id="quizApp">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <h1>Тест </h1>
+            <button class="restart-btn" id="restartHeadBtn" title="начать заново">↻ заново</button>
+        </div>
+
+        <!-- главная панель с вопросом и вариантами -->
+        <div class="question-panel">
+            <div class="question-text" id="questionDisplay">Загрузка...</div>
+            <div class="options-grid" id="optionsContainer"></div>
+        </div>
+
+        <!-- фидбек + очки + навигация -->
+        <div class="feedback-bar">
+            <div class="message-box" id="feedbackMessage">Выберите вариант</div>
+            <div class="score-badge" id="scoreDisplay">⭐ <span id="scoreValue">0</span> / <span id="totalQuestions">0</span></div>
+        </div>
+
+        <div class="nav-buttons">
+            <button class="secondary" id="prevBtn" disabled>◀ Назад</button>
+            <button class="primary" id="nextBtn" disabled>Далее ▶</button>
+        </div>
+        <footer>
+            <small style="color:#385a8a; opacity:0.8;">каждый вопрос — 4 варианта · одинарный выбор</small>
+        </footer>
+    </div>
+    <script src="m3script.js"></script>

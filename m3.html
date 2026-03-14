@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClickHouse: Уровень 2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: #f8fafc;
+        }
+        h1 {
+            font-size: 2.5rem;
+            color: #0f3b5e;
+            border-bottom: 4px solid #1e4a6f;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+        h2 {
+            font-size: 2rem;
+            color: #1e4a6f;
+            margin-top: 2.5rem;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+            border-left: 6px solid #1e4a6f;
+            padding-left: 1rem;
+        }
+        h3 {
+            font-size: 1.5rem;
+            color: #2c3e50;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+        .theory-block {
+            background-color: #f1f5f9;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-left: 6px solid #1e4a6f;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            background-color: white;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        th {
+            background-color: #1e4a6f;
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            text-align: left;
+        }
+        td {
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+        }
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        .mark {
+            background-color: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.9rem;
+        }
+        pre {
+            background-color: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 1rem 0;
+        }
+        .question-box {
+            background-color: #fef3c7;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-left: 6px solid #d97706;
+        }
+        .answer {
+            background-color: #d1fae5;
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-left: 6px solid #059669;
+        }
+        .checklist {
+            background-color: #e0f2fe;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border: 2px dashed #0284c7;
+        }
+        .checklist ul {
+            list-style-type: none;
+        }
+        .checklist li {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        .checklist li::before {
+            content: "✓";
+            color: #0284c7;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e1;
+            margin: 1rem 0;
+        }
+        .warning {
+            color: #b91c1c;
+            font-weight: 600;
+        }
+        .note {
+            color: #1e4a6f;
+            font-weight: 500;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Уровень 2: Внешние системы мониторинга инфраструктуры для ClickHouse</h1>
+    <h2>Теоретический блок (улучшенная версия)</h2>
+    <h3>🔹 Что такое внешние системы мониторинга?</h3>
+    <p>Внешние системы мониторинга — это инструменты, которые работают отдельно от ClickHouse, но подключаются к нему
+        для сбора данных о его работе. Они не входят в состав СУБД, а «наблюдают за ней со стороны».</p>
+    <h3>🔹 Какие бывают метрики</h3>
+    <p>💡 Важно: Prometheus и Grafana понимают все эти типы, а Zabbix работает преимущественно с Gauge и Counter.</p>
+    <h3>🔹 Три основных инструмента Prometheus, Grafana, Zabbix</h3>
+    <h4>🟦 Prometheus</h4>
+    <p>Что это: Система сбора и хранения метрик с открытым исходным кодом. Работает по модели pull — сама периодически
+        «опрашивает» ClickHouse по HTTP.</p>
+    <p>Как подключается к ClickHouse:</p>
+    <p>ClickHouse имеет встроенный эндпоинт :8001/metrics, который отдаёт метрики в формате Prometheus</p>
+    <p>Никаких дополнительных агентов не требуется</p>
+    <p>Плюсы для ClickHouse:</p>
+    <p>✅ Нативная поддержка — метрики «из коробки»</p>
+    <p>✅ Мощный язык запросов PromQL для анализа</p>
+    <p>✅ Гибкие правила алертинга через Alertmanager</p>
+    <p>Минусы:</p>
+    <p>❌ Хранит данные локально — для долгосрочного хранения нужна связка с Thanos/VictoriaMetrics</p>
+    <p>❌ Требует отдельной настройки для кластеров</p>
+    <h4>🟨 Grafana</h4>
+    <p>Что это: Платформа визуализации. Сама не собирает метрики, а подключается к источникам данных (Prometheus,
+        ClickHouse, Zabbix) и строит красивые дашборды.</p>
+    <p>Как работает с ClickHouse:</p>
+    <p>Устанавливается официальный плагин ClickHouse Data Source for Grafana</p>
+    <p>Настраивается подключение к серверу ClickHouse (через нативный протокол или HTTP)</p>
+    <p>Создаются панели с запросами к системным таблицам или метрикам</p>
+    <p>Плюсы:</p>
+    <p>✅ Огромная библиотека готовых дашбордов (Grafana.com)</p>
+    <p>✅ Поддержка переменных для динамической фильтрации (по хосту, базе, таблице)</p>
+    <p>✅ Возможность строить графики напрямую по данным из ClickHouse</p>
+    <p>Минусы:</p>
+    <p>❌ Не хранит данные — только визуализирует</p>
+    <p>❌ Требует источник метрик (Prometheus, сам ClickHouse и т.д.)</p>
+    <h4>🟩 Zabbix</h4>
+    <p>Что это: Универсальная система мониторинга корпоративного уровня. Работает по модели push (агент отправляет
+        данные) или pull (сервер запрашивает).</p>
+    <p>Как подключается к ClickHouse:</p>
+    <p>Используется официальный шаблон «ClickHouse by HTTP»</p>
+    <p>Шаблон запрашивает метрики через HTTP-интерфейс ClickHouse (:8123)</p>
+    <p>Поддерживает автообнаружение (LLD): сам находит новые таблицы, реплики, базы</p>
+    <p>Плюсы:</p>
+    <p>✅ Готовые триггеры и алерты «из коробки»</p>
+    <p>✅ Интеграция с системами уведомлений (Telegram, Email, Slack)</p>
+    <p>✅ Долгосрочное хранение истории и трендов</p>
+    <p>Минусы:</p>
+    <p>❌ Более сложная начальная настройка по сравнению с Prometheus+Grafana</p>
+    <p>❌ Меньше готовых дашбордов именно для ClickHouse</p>
+    <h3>🔹 Список метрик</h3>
+    <h1>ПРАКТИКА: ClickHouse + Prometheus + Grafana</h1>
+    <p>Совет: Если на каком-то этапе что-то идет не так - не сдавайся! Говорю как человек, который 4 часа боролся для
+        того, чтобы все заработало) Не перенебрегай шагом установки в Docker, это потенциально сэкономит 3 из них.</p>
+    <h2>🔹 Шаг 0: Проверяем, что ClickHouse работает и отдаёт метрики</h2>
+    <p># В терминале WSL:</p>
+    <p>sudo service clickhouse-server status</p>
+    <h2>ЧАСТЬ 1: ПОДГОТОВКА</h2>
+    <h3>1. Устанавливаем Docker (если нет)</h3>
+    <p>bash</p>
+    <p># Обновляем пакеты</p>
+    <p>sudo apt update</p>
+    <p># Устанавливаем Docker</p>
+    <p>sudo apt install docker.io -y</p>
+    <p># Запускаем Docker</p>
+    <p>sudo systemctl start docker</p>
+    <p>sudo systemctl enable docker</p>
+    <p># Добавляем пользователя в группу docker (чтобы не нужен был sudo)</p>
+    <p>sudo usermod -aG docker $USER</p>
+    <p># Применяем изменения (или перезайди в терминал)</p>
+    <p>newgrp docker</p>
+    <h2>📋 ЧАСТЬ 2: НАСТРОЙКА CLICKHOUSE</h2>
+    <h3>2. Создаём конфиг для Prometheus</h3>
+    <p>bash</p>
+    <p># Создаём папку для конфига</p>
+    <p>mkdir -p ~/clickhouse-prometheus</p>
+    <p># Создаём конфиг с Prometheus endpoint</p>
+    <p>cat > ~/clickhouse-prometheus/prometheus.xml << 'EOF' </p>
+            <p>
+                <clickhouse>
+            </p>
+            <p>
+                <prometheus>
+            </p>
+            <p>
+                <endpoint>/metrics</endpoint>
+            </p>
+            <p>
+                <port>8001</port>
+            </p>
+            <p>
+                <metrics>true</metrics>
+            </p>
+            <p>
+                <events>true</events>
+            </p>
+            <p>
+                <asynchronous_metrics>true</asynchronous_metrics>
+            </p>
+            <p>
+                </prometheus>
+            </p>
+            <p>
+                </clickhouse>
+            </p>
+            <p>EOF</p>
+            <p># Проверяем, что создалось</p>
+            <p>cat ~/clickhouse-prometheus/prometheus.xml</p>
+            <h3>3. Запускаем ClickHouse</h3>
+            <p>bash</p>
+            <p># Создаём Docker сеть</p>
+            <p>docker network create monitoring</p>
+            <p># Запускаем ClickHouse</p>
+            <p>docker run -d --name clickhouse \</p>
+            <p> --network monitoring \</p>
+            <p> -p 8123:8123 \</p>
+            <p> -p 9000:9000 \</p>
+            <p> -p 8001:8001 \</p>
+            <p> -v ~/clickhouse-prometheus/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro \</p>
+            <p> -e CLICKHOUSE_USER=default \</p>
+            <p> -e CLICKHOUSE_PASSWORD=test123 \</p>
+            <p> clickhouse/clickhouse-server:23.8</p>
+            <p># Ждём запуска</p>
+            <p>sleep 10</p>
+            <p># Проверяем, что работает</p>
+            <p>docker ps | grep clickhouse</p>
+            <p># Проверяем метрики</p>
+            <p>curl http://localhost:8001/metrics | head -30</p>
+            <p>✅ Если видишь метрики с # HELP и # TYPE — ClickHouse работает!</p>
+            <h2>📋 ЧАСТЬ 3: НАСТРОЙКА PROMETHEUS</h2>
+            <h3>4. Создаём конфиг Prometheus</h3>
+            <p>bash</p>
+            <p># Создаём папку</p>
+            <p>mkdir -p ~/prometheus-config</p>
+            <p># Создаём конфиг</p>
+            <p>cat > ~/prometheus-config/prometheus.yml << 'EOF' </p>
+                    <p>global:</p>
+                    <p> scrape_interval: 15s</p>
+                    <p> evaluation_interval: 15s</p>
+                    <p>scrape_configs:</p>
+                    <p> - job_name: 'clickhouse'</p>
+                    <p> static_configs:</p>
+                    <p> - targets: ['clickhouse:8001']</p>
+                    <p>EOF</p>
+                    <p># Проверяем</p>
+                    <p>cat ~/prometheus-config/prometheus.yml</p>
+                    <h3>5. Запускаем Prometheus</h3>
+                    <p>bash</p>
+                    <p>docker run -d --name prometheus \</p>
+                    <p> --network monitoring \</p>
+                    <p> -p 9090:9090 \</p>
+                    <p> -v ~/prometheus-config/prometheus.yml:/etc/prometheus/prometheus.yml:ro \</p>
+                    <p> prom/prometheus:latest</p>
+                    <p># Ждём запуска</p>
+                    <p>sleep 5</p>
+                    <p># Проверяем статус</p>
+                    <p>curl http://localhost:9090/api/v1/targets | python3 -m json.tool</p>
+                    <p>✅ Если видишь "health": "up" — Prometheus собирает метрики!</p>
+                    <h2>📋 ЧАСТЬ 4: НАСТРОЙКА GRAFANA</h2>
+                    <h3>6. Запускаем Grafana</h3>
+                    <p>bash</p>
+                    <p>docker run -d --name grafana \</p>
+                    <p> --network monitoring \</p>
+                    <p> -p 3000:3000 \</p>
+                    <p> grafana/grafana:latest</p>
+                    <p># Проверяем</p>
+                    <p>sleep 5</p>
+                    <p>docker ps | grep grafana</p>
+                    <h3>7. Открываем Grafana в браузере</h3>
+                    <p>Перейди: http://localhost:3000</p>
+                    <p>Логин: admin</p>
+                    <p>Пароль: admin</p>
+                    <p>Поменяй пароль (предложат при первом входе)</p>
+                    <h2>📋 ЧАСТЬ 5: НАСТРОЙКА ВИЗУАЛИЗАЦИИ</h2>
+                    <h3>8. Добавляем Prometheus в Grafana</h3>
+                    <p>В Grafana: Connections → Data sources → Add data source</p>
+                    <p>Выбери: Prometheus</p>
+                    <p>В поле URL введи: http://prometheus:9090</p>
+                    <p>Нажми: Save & test</p>
+                    <p>Должно появиться: "Data source is working" ✅</p>
+                    <h3>9. Создаём дашборд</h3>
+                    <p>Dashboards → New dashboard → Add visualization</p>
+                    <p>Выбери Prometheus</p>
+                    <p>Введи запросы:</p>
+                    <p>promql</p>
+                    <p># Количество всех запросов</p>
+                    <p>ClickHouseProfileEvents_Query</p>
+                    <p># SELECT запросы</p>
+                    <p>ClickHouseProfileEvents_SelectQuery</p>
+                    <p># INSERT запросы</p>
+                    <p>ClickHouseProfileEvents_InsertQuery</p>
+                    <p># Использованная память</p>
+                    <p>ClickHouseProfileEvents_MemoryTracking</p>
+                    <p>Выбери визуализацию: Time series</p>
+                    <p>Нажми: Save dashboard</p>
+                    <p>Имя: "ClickHouse Monitoring"</p>
+                    <h2>📋 ЧАСТЬ 6: ПРОВЕРКА</h2>
+                    <h3>10. Проверяем всю систему</h3>
+                    <p>bash</p>
+                    <p># Все контейнеры</p>
+                    <p>docker ps</p>
+                    <p># Логи ClickHouse</p>
+                    <p>docker logs clickhouse --tail 10</p>
+                    <p># Логи Prometheus</p>
+                    <p>docker logs prometheus --tail 10</p>
+                    <p># Метрики ClickHouse</p>
+                    <p>curl http://localhost:8001/metrics | wc -l</p>
+                    <p># Статус Prometheus</p>
+                    <p>curl http://localhost:9090/api/v1/targets | python3 -m json.tool | grep health</p>
+                    <h2>📋 ЧАСТЬ 7: ОСТАНОВИТЬ В КОНЦЕ РАБОТЫ</h2>
+                    <p>Не забудь остановить все!)</p>
+                    <p>bash</p>
+                    <p># Остановить все контейнеры</p>
+                    <p>docker stop clickhouse prometheus grafana</p>
+                    <p># Проверить, что остановились</p>
+                    <p>docker ps -a</p>
+                    <p># Позже запустить заново</p>
+                    <p>docker start clickhouse prometheus grafana</p>
+                    <h2>📊 ПОЛЕЗНЫЕ ЗАПРОСЫ PROMQL</h2>
+                    <p>promql</p>
+                    <p># Количество запросов в секунду</p>
+                    <p>rate(ClickHouseProfileEvents_Query[1m])</p>
+                    <p># SELECT запросы</p>
+                    <p>rate(ClickHouseProfileEvents_SelectQuery[1m])</p>
+                    <p># INSERT запросы</p>
+                    <p>rate(ClickHouseProfileEvents_InsertQuery[1m])</p>
+                    <p># Использованная память</p>
+                    <p>ClickHouseProfileEvents_MemoryTracking</p>
+                    <p># Асинхронные вставки</p>
+                    <p>ClickHouseProfileEvents_AsyncInsertQuery</p>
+                    <p># Количество строк в SELECT</p>
+                    <p>ClickHouseProfileEvents_SelectedRows</p>
+                    <p># Время выполнения запросов</p>
+                    <p>ClickHouseProfileEvents_QueryTimeMicroseconds</p>
+                    <h2>🎯 ГОТОВО! У ТЕБЯ ЕСТЬ:</h2>
+                    <p>✅ ClickHouse — база данных</p>
+                    <p>✅ Prometheus — сбор метрик</p>
+                    <p>✅ Grafana — визуализация</p>
+                    <p>✅ Рабочий дашборд с метриками</p>
+                    <h1>ТЕСТОВЫЕ ВОПРОСЫ</h1>
+                    <h3>Вопрос 1: Что такое метрика в контексте мониторинга?</h3>
+                    <p>А) Файл с логами ошибок приложения</p>
+                    <p>Б) Числовое значение, измеряемое во времени (например, количество запросов в секунду) ✅</p>
+                    <p>В) Графическое отображение данных в дашборде</p>
+                    <p>Г) Конфигурационный файл системы мониторинга</p>
+                    <p>Объяснение: Метрика — это числовой показатель, который собирается через определённые интервалы
+                        времени и позволяет отслеживать состояние системы.</p>
+                    <h3>Вопрос 2: Какая основная задача системы мониторинга?</h3>
+                    <p>А) Хранение резервных копий данных</p>
+                    <p>Б) Ускорение выполнения запросов к базе данных</p>
+                    <p>В) Сбор, хранение и визуализация данных о состоянии систем ✅</p>
+                    <p>Г) Автоматическое исправление ошибок в коде</p>
+                    <p>Объяснение: Мониторинг позволяет собирать данные о работе систем, анализировать их и своевременно
+                        реагировать на проблемы.</p>
+                    <h3>Вопрос 3: Какой тип метрики используется для подсчёта общего количества событий?</h3>
+                    <p>А) Gauge — значение может увеличиваться и уменьшаться</p>
+                    <p>Б) Counter — значение только увеличивается ✅</p>
+                    <p>В) Histogram — распределение значений по диапазонам</p>
+                    <p>Г) Summary — статистические показатели (перцентили)</p>
+                    <p>Объяснение: Counter — это метрика, которая только растёт (или сбрасывается при перезапуске).
+                        Идеально подходит для подсчёта событий.</p>
+                    <h3>Вопрос 4: Как Prometheus получает метрики от экспортеров?</h3>
+                    <p>А) Экспортеры сами отправляют данные в Prometheus (push-модель)</p>
+                    <p>Б) Prometheus периодически опрашивает экспортеры по HTTP (pull-модель) ✅</p>
+                    <p>В) Через общую базу данных, куда пишут оба компонента</p>
+                    <p>Г) Через систему сообщений (message queue)</p>
+                    <p>Объяснение: Prometheus использует pull-модель: он сам подключается к эндпоинтам экспортеров и
+                        забирает метрики.</p>
+                    <table>
+                        <tr>
+                            <td>Тип метрики</td>
+                            <td>Что измеряет</td>
+                            <td>Пример для ClickHouse</td>
+                        </tr>
+                        <tr>
+                            <td>Счётчик (Counter)</td>
+                            <td>Накопительное значение, которое только растёт</td>
+                            <td>Query — общее количество выполненных запросов с момента запуска</td>
+                        </tr>
+                        <tr>
+                            <td>Га́йдж (Gauge)</td>
+                            <td>Мгновенное значение, которое может расти и падать</td>
+                            <td>MemoryTracking — сколько памяти используется прямо сейчас</td>
+                        </tr>
+                        <tr>
+                            <td>Гистограмма (Histogram)</td>
+                            <td>Распределение значений по диапазонам</td>
+                            <td>Время выполнения запросов: сколько запросов выполнилось за 0-100 мс, 100-500 мс и т.д.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Сводка (Summary)</td>
+                            <td>Агрегированные статистики: сумма, среднее, процентили</td>
+                            <td>QueryTimeMicroseconds — среднее и 95-й процентиль времени выполнения</td>
+                        </tr>
+                    </table>
+                    <table>
+                        <tr>
+                            <td>Метрика</td>
+                            <td>Где смотреть</td>
+                            <td>Что означает простыми словами</td>
+                            <td>Нормальное значение</td>
+                            <td>🚨 Когда бить тревогу</td>
+                            <td>Что делать</td>
+                        </tr>
+                        <tr>
+                            <td>Query, SelectQuery, InsertQuery</td>
+                            <td>system.events или Prometheus</td>
+                            <td>Сколько всего запросов выполнено / SELECT / INSERT в секунду</td>
+                            <td>Зависит от нагрузки приложения</td>
+                            <td>Резкий рост или падение в 2-3 раза без причины</td>
+                            <td>Проверить логи запросов, найти «тяжёлые» запросы через system.query_log</td>
+                        </tr>
+                        <tr>
+                            <td>MemoryTracking</td>
+                            <td>system.metrics</td>
+                            <td>Сколько оперативной памяти ClickHouse использует прямо сейчас</td>
+                            <td>
+                                < 80% от доступной RAM</td>
+                            <td>> 90% — риск аварийной остановки (OOM-kill)</td>
+                            <td>Найти запросы, потребляющие много памяти: SELECT * FROM system.processes ORDER BY
+                                memory_usage DESC</td>
+                        </tr>
+                        <tr>
+                            <td>DelayedInserts</td>
+                            <td>system.metrics</td>
+                            <td>Сколько INSERT-запросов ClickHouse намеренно притормаживает</td>
+                            <td>0 (ноль)</td>
+                            <td>> 0 в течение более 5 минут</td>
+                            <td>1) Увеличить размер пакетной вставки 2) Проверить parts_to_delay_insert 3) Пересмотреть
+                                партиционирование</td>
+                        </tr>
+                        <tr>
+                            <td>MaxPartCountForPartition</td>
+                            <td>Агрегация по system.parts</td>
+                            <td>Максимальное количество файлов-«частей» в одной партиции таблицы</td>
+                            <td>
+                                < 150</td>
+                            <td>> 300 — SELECT начнут тормозить</td>
+                            <td>1) Оптимизировать частоту вставок 2) Проверить настройки merge_tree 3) Запустить
+                                OPTIMIZE TABLE ... FINAL (осторожно!)</td>
+                        </tr>
+                        <tr>
+                            <td>ReplicasMaxAbsoluteDelay</td>
+                            <td>system.metrics</td>
+                            <td>Насколько сильно реплика отстаёт от других в кластере (в секундах)</td>
+                            <td>
+                                < 60 сек</td>
+                            <td>> 600 сек (10 минут) — данные могут быть неполными</td>
+                            <td>1) Проверить сеть между нодами 2) Проверить нагрузку на диск 3) Проверить статус
+                                ZooKeeper</td>
+                        </tr>
+                        <tr>
+                            <td>ZooKeeperSession</td>
+                            <td>system.metrics</td>
+                            <td>Сколько активных подключений к ZooKeeper у этой ноды</td>
+                            <td>1 (ровно одна сессия)</td>
+                            <td>≠ 1 или значение часто меняется</td>
+                            <td>1) Проверить логи на ошибки подключения 2) Настроить таймауты zookeeper_*_timeout_ms
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>NetworkErrors</td>
+                            <td>system.events</td>
+                            <td>Сколько ошибок сети произошло при обмене данными</td>
+                            <td>0</td>
+                            <td>Любой рост > 0</td>
+                            <td>1) Проверить сеть (ping, netstat) 2) Проверить фаерволы и балансировщики</td>
+                        </tr>
+                        <tr>
+                            <td>MergedUncompressedBytes</td>
+                            <td>system.metrics</td>
+                            <td>Сколько данных обрабатывают фоновые процессы слияния (merge)</td>
+                            <td>> 0 (значит, merge работает)</td>
+                            <td>0 при высоком DelayedInserts — слияние «зависло»</td>
+                            <td>1) Проверить system.merges 2) Увеличить
+                                number_of_free_entries_in_pool_to_execute_mutation</td>
+                        </tr>
+                        <tr>
+                            <td>TCPConnection, HTTPConnection</td>
+                            <td>system.metrics</td>
+                            <td>Сколько клиентов подключено к нативному / HTTP-интерфейсу</td>
+                            <td>Зависит от архитектуры</td>
+                            <td>Резкий рост до лимита max_connections</td>
+                            <td>1) Проверить пул соединений в приложении 2) Настроить max_connections в конфиге</td>
+                        </tr>
+                        <tr>
+                            <td>ReplicaIsReadOnly</td>
+                            <td>system.metrics</td>
+                            <td>Перешла ли реплика в режим «только чтение» из-за ошибок</td>
+                            <td>0 (ноль)</td>
+                            <td>= 1 — реплика не принимает запись</td>
+                            <td>1) Проверить логи на ошибки репликации 2) Проверить место на диске 3) Проверить
+                                ZooKeeper</td>
+                        </tr>
+                    </table>
+</body>
+
+</html>
